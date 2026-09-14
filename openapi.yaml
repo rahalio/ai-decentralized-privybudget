@@ -1,0 +1,757 @@
+openapi: 3.0.3
+info:
+  title: Privybudget
+  version: 0.1.0
+  description: >-
+    Federated learning control plane that meters differential-privacy budgets,
+    orchestrates privacy-preserving training rounds, and emits release attestations
+    without centralising raw personal data.
+  x-product-slug: ai-decentralized-privybudget
+  x-source: ai-in-decentralized+ai/20181212queenslandaimeetup-181214004427/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Consortia
+    description: Multi-institution consortia, members, and nodes
+  - name: PrivacyBudgets
+    description: Differential-privacy budget allocation and metering
+  - name: TrainingRounds
+    description: Federated round orchestration and update artefacts
+  - name: Attestations
+    description: Release attestations and FAT gates
+  - name: Freezes
+    description: Member kill-switches and revocation
+paths:
+  /v1/consortia:
+    get:
+      operationId: listConsortia
+      tags: [Consortia]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Consortia page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeConsortium"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createConsortium
+      tags: [Consortia]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsortiumCreate"
+      responses:
+        "201":
+          description: Consortium created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeConsortium"
+  /v1/consortia/{consortiumId}/members:
+    parameters:
+      - $ref: "#/components/parameters/ConsortiumId"
+    post:
+      operationId: addConsortiumMember
+      tags: [Consortia]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemberCreate"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeMember"
+  /v1/privacy-budgets:
+    get:
+      operationId: listPrivacyBudgets
+      tags: [PrivacyBudgets]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: consortiumId
+          in: query
+          schema:
+            type: string
+        - name: memberId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Privacy budgets page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopePrivacyBudget"
+    post:
+      operationId: allocatePrivacyBudget
+      tags: [PrivacyBudgets]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivacyBudgetAllocate"
+      responses:
+        "201":
+          description: Budget allocated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopePrivacyBudget"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+  /v1/privacy-budgets/{budgetId}:
+    parameters:
+      - $ref: "#/components/parameters/BudgetId"
+    get:
+      operationId: getPrivacyBudget
+      tags: [PrivacyBudgets]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Privacy budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopePrivacyBudget"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/training-rounds:
+    get:
+      operationId: listTrainingRounds
+      tags: [TrainingRounds]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [proposed, running, blocked, completed, failed]
+      responses:
+        "200":
+          description: Training rounds page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeTrainingRound"
+    post:
+      operationId: proposeTrainingRound
+      tags: [TrainingRounds]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingRoundPropose"
+      responses:
+        "201":
+          description: Round proposed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeTrainingRound"
+        "409":
+          description: Insufficient privacy budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /v1/training-rounds/{roundId}/updates:
+    parameters:
+      - $ref: "#/components/parameters/RoundId"
+    post:
+      operationId: submitRoundUpdate
+      tags: [TrainingRounds]
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateArtefact"
+      responses:
+        "202":
+          description: Update accepted for aggregation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeUpdateArtefact"
+  /v1/attestations:
+    get:
+      operationId: listAttestations
+      tags: [Attestations]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: consortiumId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Attestations page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeAttestation"
+  /v1/attestations/{attestationId}/export:
+    parameters:
+      - $ref: "#/components/parameters/AttestationId"
+    get:
+      operationId: exportAttestationPack
+      tags: [Attestations]
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Audit export pack
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeAttestationExport"
+  /v1/model-candidates/{candidateId}/promote:
+    parameters:
+      - $ref: "#/components/parameters/CandidateId"
+    post:
+      operationId: promoteModelCandidate
+      tags: [Attestations]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fairnessGatePassed, attestationId]
+              properties:
+                fairnessGatePassed:
+                  type: boolean
+                attestationId:
+                  type: string
+                rationale:
+                  type: string
+      responses:
+        "200":
+          description: Candidate promoted or rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeModelCandidate"
+  /v1/freezes:
+    get:
+      operationId: listFreezes
+      tags: [Freezes]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Freeze orders page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelopeFreezeOrder"
+    post:
+      operationId: issueFreezeOrder
+      tags: [Freezes]
+      security:
+        - BearerAuth: []
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FreezeOrderCreate"
+      responses:
+        "202":
+          description: Freeze accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataEnvelopeFreezeOrder"
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    ConsortiumId:
+      name: consortiumId
+      in: path
+      required: true
+      schema:
+        type: string
+    BudgetId:
+      name: budgetId
+      in: path
+      required: true
+      schema:
+        type: string
+    RoundId:
+      name: roundId
+      in: path
+      required: true
+      schema:
+        type: string
+    AttestationId:
+      name: attestationId
+      in: path
+      required: true
+      schema:
+        type: string
+    CandidateId:
+      name: candidateId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+    Consortium:
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [draft, active, suspended]
+        purpose:
+          type: string
+    ConsortiumCreate:
+      type: object
+      required: [name, purpose]
+      properties:
+        name:
+          type: string
+        purpose:
+          type: string
+    Member:
+      type: object
+      required: [id, consortiumId, institutionName, status]
+      properties:
+        id:
+          type: string
+        consortiumId:
+          type: string
+        institutionName:
+          type: string
+        status:
+          type: string
+          enum: [invited, active, frozen, revoked]
+        nodeEndpoint:
+          type: string
+    MemberCreate:
+      type: object
+      required: [institutionName]
+      properties:
+        institutionName:
+          type: string
+        nodeEndpoint:
+          type: string
+    PrivacyBudget:
+      type: object
+      required: [id, consortiumId, memberId, epsilonTotal, epsilonRemaining, purpose]
+      properties:
+        id:
+          type: string
+        consortiumId:
+          type: string
+        memberId:
+          type: string
+        purpose:
+          type: string
+        epsilonTotal:
+          type: number
+          format: float
+        epsilonRemaining:
+          type: number
+          format: float
+        delta:
+          type: number
+          format: float
+        cryptographicMode:
+          type: string
+          enum: [none, differential_privacy, smpc, homomorphic]
+    PrivacyBudgetAllocate:
+      type: object
+      required: [consortiumId, memberId, purpose, epsilonTotal]
+      properties:
+        consortiumId:
+          type: string
+        memberId:
+          type: string
+        purpose:
+          type: string
+        epsilonTotal:
+          type: number
+          format: float
+        delta:
+          type: number
+          format: float
+        cryptographicMode:
+          type: string
+          enum: [none, differential_privacy, smpc, homomorphic]
+    TrainingRound:
+      type: object
+      required: [id, consortiumId, status]
+      properties:
+        id:
+          type: string
+        consortiumId:
+          type: string
+        status:
+          type: string
+          enum: [proposed, running, blocked, completed, failed]
+        estimatedEpsilonSpend:
+          type: number
+          format: float
+        modelFamily:
+          type: string
+        blockReason:
+          type: string
+    TrainingRoundPropose:
+      type: object
+      required: [consortiumId, modelFamily, estimatedEpsilonSpend]
+      properties:
+        consortiumId:
+          type: string
+        modelFamily:
+          type: string
+        estimatedEpsilonSpend:
+          type: number
+          format: float
+        participantMemberIds:
+          type: array
+          items:
+            type: string
+    UpdateArtefact:
+      type: object
+      required: [memberId, artefactHash, artefactType]
+      properties:
+        id:
+          type: string
+        memberId:
+          type: string
+        artefactHash:
+          type: string
+        artefactType:
+          type: string
+          enum: [gradient, encrypted_tensor, aggregate]
+        epsilonConsumed:
+          type: number
+          format: float
+    Attestation:
+      type: object
+      required: [id, roundId, modelArtefactHash, purpose]
+      properties:
+        id:
+          type: string
+        roundId:
+          type: string
+        purpose:
+          type: string
+        modelArtefactHash:
+          type: string
+        epsilonConsumedTotal:
+          type: number
+          format: float
+        participantMemberIds:
+          type: array
+          items:
+            type: string
+    AttestationExport:
+      type: object
+      properties:
+        attestationId:
+          type: string
+        packHash:
+          type: string
+        redactedSummary:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+    ModelCandidate:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [experimental, pending_gate, promoted, rejected]
+        attestationId:
+          type: string
+        fairnessGatePassed:
+          type: boolean
+    FreezeOrder:
+      type: object
+      required: [id, memberId, status]
+      properties:
+        id:
+          type: string
+        memberId:
+          type: string
+        status:
+          type: string
+          enum: [pending, active, lifted]
+        reason:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+    FreezeOrderCreate:
+      type: object
+      required: [memberId, reason]
+      properties:
+        memberId:
+          type: string
+        reason:
+          type: string
+        scope:
+          type: string
+          enum: [outbound_updates, all_rounds]
+    DataEnvelopeConsortium:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Consortium"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeMember:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/Member"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopePrivacyBudget:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/PrivacyBudget"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeTrainingRound:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/TrainingRound"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeUpdateArtefact:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/UpdateArtefact"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeAttestationExport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/AttestationExport"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeModelCandidate:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/ModelCandidate"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    DataEnvelopeFreezeOrder:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          $ref: "#/components/schemas/FreezeOrder"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeConsortium:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Consortium"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopePrivacyBudget:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/PrivacyBudget"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeTrainingRound:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/TrainingRound"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeAttestation:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/Attestation"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    ListEnvelopeFreezeOrder:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/FreezeOrder"
+            nextCursor:
+              type: string
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
